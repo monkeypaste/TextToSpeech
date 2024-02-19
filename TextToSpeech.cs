@@ -1,83 +1,90 @@
-﻿using MonkeyPaste.Common;
-using MonkeyPaste.Common.Plugin;
+﻿using MonkeyPaste.Common.Plugin;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
+using System.Threading.Tasks;
 
 namespace TextToSpeech {
     public class TextToSpeechPlugin :
-        MpIAnalyzeComponent,
+        MpIAnalyzeComponentAsync,
         MpISupportHeadlessAnalyzerFormat {
         const string TEXT_PARAM_ID = "1";
 
-        public MpAnalyzerPluginResponseFormat Analyze(MpAnalyzerPluginRequestFormat req) {
+        public async Task<MpAnalyzerPluginResponseFormat> AnalyzeAsync(MpAnalyzerPluginRequestFormat req) {
             if (req == null ||
                 req.GetParamValue<string>(TEXT_PARAM_ID) is not string text) {
                 return null;
             }
-            try {
-                // from https://stackoverflow.com/a/39647762/105028
-
-                string ps_path = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.Windows),
-                    "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
-                if (!ps_path.IsFile()) {
-                    throw new Exception("cannot speak");
-                }
-                var proc = new Process();
-                proc.StartInfo.FileName = ps_path;
-                proc.StartInfo.Arguments = $"-Command \"Add-Type –AssemblyName System.Speech; (New-Object System.Speech.Synthesis.SpeechSynthesizer).Speak('{text}');";
-                proc.StartInfo.WorkingDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
-                proc.StartInfo.UseShellExecute = false;
-                proc.StartInfo.CreateNoWindow = true;
-                proc.StartInfo.RedirectStandardOutput = true;
-                proc.Start();
-                string proc_output = proc.StandardOutput.ReadToEnd();
-
-                proc.WaitForExit();
-                int exit_code = proc.ExitCode;
-                proc.Close();
-
-                if (exit_code != 0) {
-                    throw new Exception($"Cannot speak.{Environment.NewLine}Error #{exit_code}{Environment.NewLine}{proc_output}");
-                }
-
-            }
-            catch (Exception ex) {
+            (int code, string output) = await RunAsync(
+                args: $"/c start /min \"\" powershell -windowstyle Hidden -executionpolicy bypass -Command \"Add-Type –AssemblyName System.Speech; (New-Object System.Speech.Synthesis.SpeechSynthesizer).Speak('{text}');\"");
+            if (code != 0) {
                 return new MpAnalyzerPluginResponseFormat() {
-                    userNotifications = new[] {
-                            new MpPluginUserNotificationFormat() {
-                                NotificationType = MpPluginNotificationType.PluginResponseError,
-                                Title = "Web Search Error",
-                                Body = ex.Message,
-                                IconSourceObj = MpBase64Images.Error
-                            }
-                        }.ToList()
+                    errorMessage = $"Error code: {code}{Environment.NewLine}{output}"
                 };
             }
             return null;
         }
-        public MpAnalyzerPluginFormat GetFormat(MpHeadlessComponentFormatRequest request) {
-            return new MpAnalyzerPluginFormat() {
+
+        public MpAnalyzerComponent GetFormat(MpHeadlessComponentFormatRequest request) {
+            Resources.Culture = new System.Globalization.CultureInfo(request.culture);
+
+            return new MpAnalyzerComponent() {
                 inputType = new MpPluginInputFormat() {
                     text = true
                 },
                 parameters = new List<MpParameterFormat>() {
                     new MpParameterFormat() {
-                        label = "Text to say",
+                        isVisible = false,
+                        label = Resources.TextLabel,
                         controlType = MpParameterControlType.TextBox,
                         unitType = MpParameterValueUnitType.PlainTextContentQuery,
                         paramId = TEXT_PARAM_ID,
-                        values = new List<MpPluginParameterValueFormat>() {
-                            new MpPluginParameterValueFormat() {
-                                value = "{ItemData}"
+                        values = new List<MpParameterValueFormat>() {
+                            new MpParameterValueFormat() {
+                                value = "{ClipText}"
                             }
                         }
                     },
                 }
             };
         }
+
+        #region Cli Helpers
+        string CmdExe => Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.Windows),
+                    "System32",
+                    "cmd.exe");
+        string DefFileName =>
+            CmdExe;
+        string DefWorkingDir =>
+            Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+        async Task<(int, string)> RunAsync(
+            string file = default,
+            string dir = default,
+            string args = default) {
+            var proc = CreateProcess(file, dir, args);
+            proc.Start();
+            string proc_output = await proc.StandardOutput.ReadToEndAsync();
+            proc.WaitForExit();
+            int exit_code = proc.ExitCode;
+            proc.Close();
+            proc.Dispose();
+            return (exit_code, proc_output);
+        }
+
+        Process CreateProcess(
+            string file = default,
+            string dir = default,
+            string args = default) {
+            var proc = new Process();
+            proc.StartInfo.FileName = file ?? DefFileName;
+            proc.StartInfo.WorkingDirectory = dir ?? DefWorkingDir;
+            proc.StartInfo.Arguments = args;
+            proc.StartInfo.UseShellExecute = false;
+            proc.StartInfo.RedirectStandardOutput = true;
+            return proc;
+        }
+        #endregion
     }
 }
