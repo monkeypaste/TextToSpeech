@@ -16,8 +16,16 @@ namespace TextToSpeech {
                 req.GetParamValue<string>(TEXT_PARAM_ID) is not string text) {
                 return null;
             }
-            (int code, string output) = await RunAsync(
-                args: $"/c start /min \"\" powershell -windowstyle Hidden -executionpolicy bypass -Command \"Add-Type –AssemblyName System.Speech; (New-Object System.Speech.Synthesis.SpeechSynthesizer).Speak('{text}');\"");
+            int code = 0;
+            string output = default;
+            if(OperatingSystem.IsWindows()) {
+                (code,output) = await RunAsync(
+                    args: $"/c start /min \"\" powershell -windowstyle Hidden -executionpolicy bypass -Command \"Add-Type –AssemblyName System.Speech; (New-Object System.Speech.Synthesis.SpeechSynthesizer).Speak('{text}');\"");
+            } else {
+                // this should work on mac out-of-the-box, linux will throw exception and ntf to install 'gnustep-gui-runtime'
+                (code, output) = await RunAsync(
+                    args: $"say {text}");
+            }
             if (code != 0) {
                 return new MpAnalyzerPluginResponseFormat() {
                     errorMessage = $"Error code: {code}{Environment.NewLine}{output}"
@@ -28,7 +36,7 @@ namespace TextToSpeech {
 
         public MpAnalyzerComponent GetFormat(MpHeadlessComponentFormatRequest request) {
             Resources.Culture = new System.Globalization.CultureInfo(request.culture);
-
+            
             return new MpAnalyzerComponent() {
                 inputType = new MpPluginInputFormat() {
                     text = true
