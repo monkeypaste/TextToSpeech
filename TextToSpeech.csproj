@@ -3,15 +3,9 @@
   <PropertyGroup>
     <TargetFramework>$(DefaultTargetFramework)</TargetFramework>
     <EnableDynamicLoading>true</EnableDynamicLoading>
-    <RunPostBuildEvent>Always</RunPostBuildEvent>
-    <DisableFastUpToDateCheck>true</DisableFastUpToDateCheck>
-    <Platforms>$(DefaultPlatforms)</Platforms>
     <LangVersion>Latest</LangVersion>
   </PropertyGroup>
 
-  <ItemGroup>
-    <Compile Remove="TextToSpeech_codebased.cs" />
-  </ItemGroup>
   <ItemGroup>
     <Content Include="Resources\Resources.*.resx">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
@@ -19,14 +13,6 @@
     <Content Include="Resources\manifest.*.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-  </ItemGroup>
-  <ItemGroup>
-    <None Remove="icon.png" />
-    <None Remove="logo.png" />
-    <None Remove="manifest.json" />
-    <None Remove="manifest_declarative.json" />
-    <None Remove="manifest_declaritive.json" />
-    <None Remove="README.md" />
   </ItemGroup>
 
   <ItemGroup>
@@ -39,10 +25,6 @@
     <Content Include="README.md">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
-  </ItemGroup>
-
-  <ItemGroup>
-    <PackageReference Include="System.Speech" Version="8.0.0" />
   </ItemGroup>
 
   <ItemGroup>
@@ -65,13 +47,4 @@
       <CustomToolNamespace>TextToSpeech</CustomToolNamespace>
     </EmbeddedResource>
   </ItemGroup>
-
-  <Target Name="PostBuild" AfterTargets="PostBuildEvent" Condition="'$(PushPlugins)' == 'True'">
-    <ItemGroup>
-      <BuildFiles Include="$(TargetDir)\*.*" />
-      <ProjectFiles Include="$(ProjectDir)\*.*" />
-    </ItemGroup>
-    <Copy SourceFiles="@(BuildFiles)" DestinationFolder="$(PluginTargetDir)\$(ProjectName)\" OverwriteReadOnlyFiles="true" SkipUnchangedFiles="true" ContinueOnError="true" />
-    <Copy SourceFiles="@(ProjectFiles)" DestinationFolder="$(PluginTargetDir)\$(ProjectName)\" OverwriteReadOnlyFiles="true" SkipUnchangedFiles="true" ContinueOnError="true" />
-  </Target>
 </Project>
